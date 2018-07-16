@@ -1,0 +1,53 @@
+---
+kind: Deployment
+apiVersion: apps/v1beta2
+metadata:
+  labels:
+    elastic-app: logstash
+  name: logstash
+  namespace: logging
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      elastic-app: logstash
+  template:
+    metadata:
+      labels:
+        elastic-app: logstash
+    spec:
+      containers:
+        - name: logstash
+          image: 192.168.50.39/library/logstash:6.3.0
+          volumeMounts:
+            - mountPath: /usr/share/logstash/pipeline
+              name: logstash-conf
+          ports:
+            - containerPort: 9600
+              protocol: TCP
+          env:
+            - name: "XPACK_MONITORING_ELASTICSEARCH_URL"
+              value: "http://elasticsearch-ingest:9200"
+          securityContext:
+            privileged: true
+      volumes:
+        - name: logstash-conf
+          configMap:
+            name: logstash-config
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    elastic-app: logstash
+  name: logstash-service
+  namespace: logging
+spec:
+  ports:
+    - port: 9600
+      targetPort: 9600
+  selector:
+    elastic-app: logstash
+  type: NodePort

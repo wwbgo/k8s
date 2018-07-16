@@ -1,0 +1,95 @@
+---
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#     name: grafana-storage-pv
+# spec:
+#     capacity:
+#       storage: 5Gi
+#     accessModes:
+#       - ReadWriteOnce
+#     persistentVolumeReclaimPolicy: Recycle
+#     nfs:
+#       path: /data/nfs
+#       server: 192.168.50.34
+# ---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: grafana-storage-pvc
+spec:
+  storageClassName: rook-ceph-block
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: grafana
+    spec:
+    #   nodeSelector:
+    #     node-role.kubernetes.io/master: ""
+      containers:
+      - name: grafana
+        image: grafana/grafana:5.0.4
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+        volumeMounts:
+        # - mountPath: /etc/ssl/certs
+        #   name: ca-certificates
+        #   readOnly: true
+        - mountPath: /var/lib/grafana
+          name: grafana-storage
+        env:
+        - name: GF_INSTALL_PLUGINS
+          value: abhisant-druid-datasource
+        - name: GF_SERVER_HTTP_PORT
+          value: "3000"
+          # The following env variables are required to make Grafana accessible via
+          # the kubernetes api-server proxy. On production clusters, we recommend
+          # removing these env variables, setup auth for grafana, and expose the grafana
+          # service using a LoadBalancer or a public IP.
+        - name: GF_AUTH_BASIC_ENABLED
+          value: "false"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: Admin
+        - name: GF_SERVER_ROOT_URL
+          value: /
+      volumes:
+    #   - name: ca-certificates
+    #     hostPath:
+    #       path: /etc/ssl/certs
+      - name: grafana-storage
+        persistentVolumeClaim: 
+          claimName: grafana-storage-pvc
+        # emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    kubernetes.io/cluster-service: 'true'
+    kubernetes.io/name: grafana
+  name: grafana
+  namespace: default
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: NodePort
+  selector:
+    k8s-app: grafana

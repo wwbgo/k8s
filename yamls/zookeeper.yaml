@@ -68,7 +68,8 @@ spec:
       containers:
       - name: kubernetes-zookeeper
         imagePullPolicy: Always
-        image: "k8s.gcr.io/kubernetes-zookeeper:1.0-3.4.10"
+        #"k8s.gcr.io/kubernetes-zookeeper:1.0-3.4.10"
+        image: "192.168.50.39/library/kubernetes-zookeeper:1.0-3.4.10"
         resources:
           requests:
             memory: "1Gi"
@@ -127,6 +128,7 @@ spec:
   - metadata:
       name: datadir
     spec:
+      storageClassName: rook-ceph-block
       accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:

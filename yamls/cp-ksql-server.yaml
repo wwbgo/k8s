@@ -1,0 +1,42 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ksql-server
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: ksql-server
+    spec:
+      containers:
+      - name: ksql-server
+        image: confluentinc/cp-ksql-server:5.0.0-beta30
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8088
+          protocol: TCP
+        env:
+        - name: KSQL_BOOTSTRAP_SERVERS
+          value: kafka-svc:9092
+        - name: KSQL_LISTENERS
+          value: http://0.0.0.0:8088/
+        - name: KSQL_KSQL_SERVICE_ID
+          value: confluent_test_2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    kubernetes.io/cluster-service: 'true'
+    kubernetes.io/name: ksql-server
+  name: ksql-server
+  namespace: default
+spec:
+  ports:
+  - port: 8088
+    targetPort: 8088
+  type: NodePort
+  selector:
+    k8s-app: ksql-server
