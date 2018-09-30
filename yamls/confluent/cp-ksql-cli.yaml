@@ -1,0 +1,30 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ksql-cli
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: ksql-cli
+    spec:
+      containers:
+      - name: ksql-cli
+        image: confluentinc/cp-ksql-cli:5.0.0-beta30
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: STREAMS_BOOTSTRAP_SERVERS
+          value: kafka-svc:9092
+        - name: STREAMS_LISTENERS
+          value: ksql-server:9092
+        - name: STREAMS_SCHEMA_REGISTRY_HOST
+          value: schema-registry-svc
+        - name: STREAMS_SCHEMA_REGISTRY_PORT
+          value: "8081"
+        - name: KSQL_CONFIG_DIR
+          value: /etc/ksql
+        - name: KSQL_LOG4J_OPTS
+          value: -Dlog4j.configuration=file:/etc/ksql/log4j-rolling.properties
+

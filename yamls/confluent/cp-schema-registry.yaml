@@ -1,0 +1,41 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: schema-registry
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: schema-registry
+    spec:
+      containers:
+      - name: schema-registry
+        image: confluentinc/cp-schema-registry:5.0.0-beta30
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        env:
+        - name: SCHEMA_REGISTRY_HOST_NAME
+          value: schema-registry
+        - name: SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL
+          value: zk-cs:2181
+        - name: SCHEMA_REGISTRY_LISTENERS
+          value: http://schema-registry-svc:8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    kubernetes.io/name: schema-registry
+  name: schema-registry-svc
+  namespace: default
+spec:
+  ports:
+  - port: 8081
+    targetPort: 8081
+  type: NodePort
+  selector:
+    k8s-app: schema-registry

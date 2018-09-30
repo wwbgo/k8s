@@ -39,3 +39,38 @@ spec:
   resources:
     requests:
       storage: 1Gi
+
+
+
+
+
+
+"volumes": [
+  {
+    "name": "rocksdb",
+    "persistentVolumeClaim": {
+      "claimName": "hurricane-host-rocksdb"
+    }
+  }
+],
+"containers": [
+  {
+    "name": "hurricane-host",
+    "image": "docker.flexem.com/flexem/hurricane.host:v0.2",
+    "env": [
+      {
+        "name": "bootstrap_servers",
+        "value": "192.168.50.250:32294"
+      },
+      {
+        "name": "group_id",
+        "value": "default11"
+      }
+    ],
+    "resources": {},
+    "volumeMounts": [
+      {
+        "name": "rocksdb",
+        "mountPath": "/app/RocksDB"
+      }
+    ],

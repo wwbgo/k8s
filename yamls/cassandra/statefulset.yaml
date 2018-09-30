@@ -1,0 +1,80 @@
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  labels:
+    app: cassandra
+  name: cassandra
+spec:
+  serviceName: cassandra
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    spec:
+      containers:
+        - command:
+            - /run.sh
+          resources:
+            limits:
+              cpu: 0.5
+          env:
+            - name: MAX_HEAP_SIZE
+              value: 512M
+            - name: HEAP_NEWSIZE
+              value: 100M
+            - name: MAX_HEAP_SIZE
+              value: "1758M"
+            - name: HEAP_NEWSIZE
+              value: "100M"
+            - name: CASSANDRA_SEEDS
+              value: "cassandra-0.cassandra.default.svc.cluster.local"
+            - name: CASSANDRA_CLUSTER_NAME
+              value: "K8Demo"
+            - name: CASSANDRA_DC
+              value: "DC1-K8Demo"
+            - name: CASSANDRA_RACK
+              value: "Rack1-K8Demo"
+            - name: CASSANDRA_LISTEN_ON_BROADCAST_ADDRESS
+              value: "true"
+            - name: CASSANDRA_BATCH_SIZE_WARN_THRESHOLD_IN_KB
+              value: "40"
+            - name: CASSANDRA_BATCH_SIZE_FAIL_THRESHOLD_IN_KB
+              value: "200"
+            - name: CASSANDRA_ENDPOINT_SNITCH
+              value: "GossipingPropertyFileSnitch"
+            - name: CASSANDRA_KEY_CACHE_SIZE_IN_MB
+              value: "128"
+            - name: CASSANDRA_TOMBSTONE_FAILURE_THRESHOLD
+              value: "200000"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          image: docker.flexem.com/library/cassandra:3
+          name: cassandra
+          ports:
+            - containerPort: 9042
+              name: cql
+            - containerPort: 7199
+              name: jmx
+          volumeMounts:
+            - mountPath: /var/lib/cassandra
+              name: cassandra-data
+  volumeClaimTemplates:
+  - metadata:
+      name: cassandra-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: rook-ceph-block
+      resources:
+        requests:
+          storage: 20Gi
+

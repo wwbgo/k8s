@@ -41,7 +41,7 @@ spec:
     #     node-role.kubernetes.io/master: ""
       containers:
       - name: grafana
-        image: grafana/grafana:5.0.4
+        image: grafana/grafana:5.2.3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
@@ -69,6 +69,9 @@ spec:
           value: Admin
         - name: GF_SERVER_ROOT_URL
           value: /
+      securityContext: 
+          runAsUser: 472
+          fsGroup: 472
       volumes:
     #   - name: ca-certificates
     #     hostPath:

@@ -168,6 +168,10 @@ spec:
           value : "-Xmx2G -Xms2G"
         - name: KAFKA_OPTS
           value: "-Dlogging.level=INFO"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         volumeMounts:
         - name: datadir
           mountPath: /var/lib/kafka

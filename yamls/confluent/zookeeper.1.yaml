@@ -1,41 +1,3 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: zk-hs
-  labels:
-    app: zk
-spec:
-  ports:
-  - port: 2888
-    name: server
-  - port: 3888
-    name: leader-election
-  clusterIP: None
-  selector:
-    app: zk
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: zk-cs
-  labels:
-    app: zk
-spec:
-  ports:
-  - port: 2181
-    name: client
-  selector:
-    app: zk
----
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  name: zk-pdb
-spec:
-  selector:
-    matchLabels:
-      app: zk
-  maxUnavailable: 1
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -68,8 +30,7 @@ spec:
       containers:
       - name: kubernetes-zookeeper
         imagePullPolicy: Always
-        #"k8s.gcr.io/kubernetes-zookeeper:1.0-3.4.10"
-        image: "192.168.50.39/library/kubernetes-zookeeper:1.0-3.4.10"
+        image: "confluentinc/cp-zookeeper:5.0.0"
         resources:
           requests:
             memory: "1Gi"
