@@ -1,0 +1,246 @@
+---
+# Source: cp-kafka/templates/jmx-configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: public-cp-kafka-jmx-configmap
+  labels:
+    app: cp-kafka
+    chart: cp-kafka-0.1.0
+    release: public
+    heritage: Tiller
+data:
+  jmx-kafka-prometheus.yml: |+
+    jmxUrl: service:jmx:rmi:///jndi/rmi://localhost:5555/jmxrmi
+    lowercaseOutputName: true
+    lowercaseOutputLabelNames: true
+    ssl: false
+    rules:
+    - pattern : kafka.server<type=ReplicaManager, name=(.+)><>(Value|OneMinuteRate)
+      name: "cp_kafka_server_replicamanager_$1"
+    - pattern : kafka.controller<type=KafkaController, name=(.+)><>Value
+      name: "cp_kafka_controller_kafkacontroller_$1"
+    - pattern : kafka.server<type=BrokerTopicMetrics, name=(.+)><>OneMinuteRate
+      name: "cp_kafka_server_brokertopicmetrics_$1"
+    - pattern : kafka.network<type=RequestMetrics, name=RequestsPerSec, request=(.+)><>OneMinuteRate
+      name: "cp_kafka_network_requestmetrics_requestspersec_$1"
+    - pattern : kafka.network<type=SocketServer, name=NetworkProcessorAvgIdlePercent><>Value
+      name: "cp_kafka_network_socketserver_networkprocessoravgidlepercent"
+    - pattern : kafka.server<type=ReplicaFetcherManager, name=MaxLag, clientId=(.+)><>Value
+      name: "cp_kafka_server_replicafetchermanager_maxlag_$1"
+    - pattern : kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>OneMinuteRate
+      name: "cp_kafka_kafkarequesthandlerpool_requesthandleravgidlepercent"
+    - pattern : kafka.controller<type=ControllerStats, name=(.+)><>OneMinuteRate
+      name: "cp_kafka_controller_controllerstats_$1"
+    - pattern : kafka.server<type=SessionExpireListener, name=(.+)><>OneMinuteRate
+      name: "cp_kafka_server_sessionexpirelistener_$1"
+---
+# Source: cp-kafka/templates/headless-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-cp-kafka-headless
+  labels:
+    app: cp-kafka
+    chart: cp-kafka-0.1.0
+    release: public
+    heritage: Tiller
+spec:
+  ports:
+    - port: 9092
+      name: broker
+  clusterIP: None
+  selector:
+    app: cp-kafka
+    release: public
+---
+# Source: cp-kafka/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-cp-kafka
+  labels:
+    app: cp-kafka
+    chart: cp-kafka-0.1.0
+    release: public
+    heritage: Tiller
+spec:
+  ports:
+    - port: 9092
+      name: broker
+  selector:
+    app: cp-kafka
+    release: public
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-cp-kafka-0
+spec:
+  type: NodePort
+  ports:
+    - port: 9092
+      nodePort: 32150
+      name: broker
+  selector:
+    statefulset.kubernetes.io/pod-name: public-cp-kafka-0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-cp-kafka-1
+spec:
+  type: NodePort
+  ports:
+    - port: 9092
+      nodePort: 32151
+      name: broker
+  selector:
+    statefulset.kubernetes.io/pod-name: public-cp-kafka-1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-cp-kafka-2
+spec:
+  type: NodePort
+  ports:
+    - port: 9092
+      nodePort: 32152
+      name: broker
+  selector:
+    statefulset.kubernetes.io/pod-name: public-cp-kafka-2
+---
+# Source: cp-kafka/templates/statefulset.yaml
+
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: public-cp-kafka
+  labels:
+    app: cp-kafka
+    chart: cp-kafka-0.1.0
+    release: public
+    heritage: Tiller
+spec:
+  serviceName: public-cp-kafka-headless
+  podManagementPolicy: OrderedReady
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: cp-kafka
+        release: public
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5556"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - cp-kafka
+                  - key: "release"
+                    operator: In
+                    values:
+                    - public
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: prometheus-jmx-exporter
+        image: "solsson/kafka-prometheus-jmx-exporter@sha256:a23062396cd5af1acdf76512632c20ea6be76885dfc20cd9ff40fb23846557e8"
+        command:
+        - java
+        - -XX:+UnlockExperimentalVMOptions
+        - -XX:+UseCGroupMemoryLimitForHeap
+        - -XX:MaxRAMFraction=1
+        - -XshowSettings:vm
+        - -jar
+        - jmx_prometheus_httpserver.jar
+        - "5556"
+        - /etc/jmx-kafka/jmx-kafka-prometheus.yml
+        ports:
+        - containerPort: 5556
+        resources:
+          null
+          
+        volumeMounts:
+        - name: jmx-config
+          mountPath: /etc/jmx-kafka
+      - name: cp-kafka-broker
+        image: "confluentinc/cp-kafka:5.0.0"
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 9092
+          name: kafka
+        - containerPort: 5555
+          name: jmx
+        resources:
+          {}
+          
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: KAFKA_HEAP_OPTS
+          value: -Xms1G -Xmx1G
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "public-cp-zookeeper-headless.kube-public:2181"
+        - name: "KAFKA_ADVERTISED_LISTENERS"
+          value: "EXTERNAL://192.168.50.225:3215${HOSTNAME##*-}"
+        - name: "KAFKA_LISTENERS"
+          value: "PLAINTEXT://:9092"
+        - name: "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"
+          value: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+        - name: "KAFKA_LOG_DIRS"
+          value: "/opt/kafka/data/logs"
+        - name: "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR"
+          value: "3"
+        - name: "KAFKA_DEFAULT_REPLICATION_FACTOR"
+          value: "2"
+        - name: "KAFKA_NUM_PARTITIONS"
+          value: "5"
+        - name: KAFKA_JMX_PORT
+          value: "5555"
+        # This is required because the Downward API does not yet support identification of
+        # pod numbering in statefulsets. Thus, we are required to specify a command which
+        # allows us to extract the pod ID for usage as the Kafka Broker ID.
+        # See: https://github.com/kubernetes/kubernetes/issues/31218
+        command:
+        - sh
+        - -exc
+        - |
+          export KAFKA_BROKER_ID=${HOSTNAME##*-} && \
+          export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.50.225:3215${HOSTNAME##*-} && \
+          exec /etc/confluent/docker/run
+        volumeMounts:
+        - name: datadir
+          mountPath: /opt/kafka/data
+      volumes:
+      - name: jmx-config
+        configMap:
+          name: public-cp-kafka-jmx-configmap
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: rook-ceph-block
+      resources:
+        requests:
+          storage: "15Gi"
+---
+# Source: cp-kafka/templates/nodeport-service.yaml

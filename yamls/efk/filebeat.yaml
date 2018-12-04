@@ -1,0 +1,188 @@
+---
+# Source: filebeat/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: log-filebeat
+  labels:
+    app: filebeat
+    chart: filebeat-1.0.5
+    release: log
+    heritage: Tiller
+type: Opaque
+data:
+  filebeat.yml: ICAgIGZpbGViZWF0LmNvbmZpZzoNCiAgICAgIG1vZHVsZXM6DQogICAgICAgIHBhdGg6ICR7cGF0aC5jb25maWd9L21vZHVsZXMuZC8qLnltbA0KICAgICAgICByZWxvYWQuZW5hYmxlZDogZmFsc2UNCiAgICAgIHByb3NwZWN0b3JzOg0KICAgICAgICBwYXRoOiAke3BhdGguY29uZmlnfS9wcm9zcGVjdG9ycy5kLyoueW1sDQogICAgICAgIHJlbG9hZC5lbmFibGVkOiBmYWxzZQ0KICAgIGZpbGViZWF0LnByb3NwZWN0b3JzOg0KICAgIC0gZW5hYmxlZDogdHJ1ZQ0KICAgICAgcGF0aHM6DQogICAgICAtIC92YXIvbG9nLyoubG9nDQogICAgICAtIC92YXIvbG9nL21lc3NhZ2VzDQogICAgICAtIC92YXIvbG9nL3N5c2xvZw0KICAgICAgdHlwZTogbG9nDQogICAgLSBjb250YWluZXJzLmlkczoNCiAgICAgIC0gJyonDQogICAgICBwcm9jZXNzb3JzOg0KICAgICAgLSBhZGRfa3ViZXJuZXRlc19tZXRhZGF0YToNCiAgICAgICAgICBpbl9jbHVzdGVyOiB0cnVlDQogICAgICAtIGRyb3BfZXZlbnQ6DQogICAgICAgICAgd2hlbjoNCiAgICAgICAgICAgIGVxdWFsczoNCiAgICAgICAgICAgICAga3ViZXJuZXRlcy5jb250YWluZXIubmFtZTogZmlsZWJlYXQNCiAgICAgIHR5cGU6IGRvY2tlcg0KICAgIGh0dHAuZW5hYmxlZDogZmFsc2UNCiAgICBodHRwLnBvcnQ6IDUwNjYNCiAgICAjIG91dHB1dC5maWxlOg0KICAgICMgICBmaWxlbmFtZTogZmlsZWJlYXQNCiAgICAjICAgbnVtYmVyX29mX2ZpbGVzOiA1DQogICAgIyAgIHBhdGg6IC91c3Ivc2hhcmUvZmlsZWJlYXQvZGF0YQ0KICAgICMgICByb3RhdGVfZXZlcnlfa2I6IDEwMDAwDQogICAgb3V0cHV0LmthZmthOg0KICAgICAgaG9zdHM6IFsncHVibGljLWNwLWthZmthLWhlYWRsZXNzLmt1YmUtcHVibGljOjkwOTInXQ0KICAgICAgdG9waWM6ICdsb2dnaW5nJw0KICAgICAgcGFydGl0aW9uLnJvdW5kX3JvYmluOg0KICAgICAgICByZWFjaGFibGVfb25seTogZmFsc2UNCiAgICAgIHJlcXVpcmVkX2Fja3M6IDENCiAgICAgIGNvbXByZXNzaW9uOiBnemlwDQogICAgICBtYXhfbWVzc2FnZV9ieXRlczogMTAwMDAwMA0KICAgIHByb2Nlc3NvcnM6DQogICAgLSBhZGRfY2xvdWRfbWV0YWRhdGE6IG51bGwNCiAgICA=
+
+#
+    filebeat.config:
+      modules:
+        path: ${path.config}/modules.d/*.yml
+        reload.enabled: false
+      prospectors:
+        path: ${path.config}/prospectors.d/*.yml
+        reload.enabled: false
+    filebeat.prospectors:
+    - enabled: true
+      paths:
+      - /var/log/*.log
+      - /var/log/messages
+      - /var/log/syslog
+      type: log
+    - containers.ids:
+      - '*'
+      processors:
+      - add_kubernetes_metadata:
+          in_cluster: true
+      - drop_event:
+          when:
+            equals:
+              kubernetes.container.name: filebeat
+      type: docker
+    http.enabled: false
+    http.port: 5066
+    # output.file:
+    #   filename: filebeat
+    #   number_of_files: 5
+    #   path: /usr/share/filebeat/data
+    #   rotate_every_kb: 10000
+    output.kafka:
+      hosts: ['public-cp-kafka-headless.kube-public:9092']
+      topic: 'logging'
+      partition.round_robin:
+        reachable_only: false
+      required_acks: 1
+      compression: gzip
+      max_message_bytes: 1000000
+    processors:
+    - add_cloud_metadata: null
+    
+
+---
+# Source: filebeat/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: log-filebeat
+  labels:
+    app: filebeat
+    chart: filebeat-1.0.5
+    release: log
+    heritage: Tiller
+---
+# Source: filebeat/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: log-filebeat
+  labels:
+    app: filebeat
+    chart: filebeat-1.0.5
+    release: log
+    heritage: Tiller
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  verbs: ["get", "list", "watch"]
+---
+# Source: filebeat/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: log-filebeat
+  labels:
+    app: filebeat
+    chart: filebeat-1.0.5
+    release: log
+    heritage: Tiller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: log-filebeat
+subjects:
+- kind: ServiceAccount
+  name: log-filebeat
+  namespace: logging
+---
+# Source: filebeat/templates/daemonset.yaml
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: log-filebeat
+  labels:
+    app: filebeat
+    chart: filebeat-1.0.5
+    release: log
+    heritage: Tiller
+spec:
+  selector:
+    matchLabels:
+      app: filebeat
+      release: log
+  minReadySeconds: 10
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: filebeat
+        release: log
+      annotations:
+        checksum/secret: bf4f3f65eb19a3f90c03f0d3d39f9c01c0b94026008fc767e46dc54844599435
+    spec:
+      initContainers:
+      tolerations:
+      - key: "node"
+        operator: "Equal"
+        value: "kube-master"
+        effect: "NoSchedule"
+      containers:
+      - name: filebeat
+        image: "docker.elastic.co/beats/filebeat-oss:6.5.1"
+        imagePullPolicy: IfNotPresent
+        args:
+        - "-e"
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: filebeat-config
+          mountPath: /usr/share/filebeat/filebeat.yml
+          readOnly: true
+          subPath: filebeat.yml
+        - name: data
+          mountPath: /usr/share/filebeat/data
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: filebeat-config
+        secret:
+          secretName: log-filebeat
+      - name: data
+        hostPath:
+          path: /var/lib/filebeat
+          type: DirectoryOrCreate
+      terminationGracePeriodSeconds: 60
+      serviceAccountName: log-filebeat
+
