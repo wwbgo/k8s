@@ -42,7 +42,8 @@ data:
       kafka {
         ## ref: https://www.elastic.co/guide/en/logstash/current/plugins-inputs-kafka.html
         bootstrap_servers => "public-cp-kafka-headless.kube-public:9092"
-        codec => json { charset => "UTF-8" }
+        # codec => json { charset => "UTF-8" }
+        auto_offset_reset => "latest"
         consumer_threads => 1
         topics => ["logging"]
         type => "log"
