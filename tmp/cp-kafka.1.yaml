@@ -176,7 +176,7 @@ spec:
         - name: jmx-config
           mountPath: /etc/jmx-kafka
       - name: cp-kafka-broker
-        image: "confluentinc/cp-kafka:5.0.0"
+        image: "confluentinc/cp-kafka:5.1.2"
         imagePullPolicy: "IfNotPresent"
         ports:
         - containerPort: 9092

@@ -137,7 +137,7 @@ spec:
         - name: jmx-config
           mountPath: /etc/jmx-zookeeper
       - name: cp-zookeeper-server
-        image: "confluentinc/cp-zookeeper:5.0.0"
+        image: "confluentinc/cp-zookeeper:5.1.2"
         imagePullPolicy: "IfNotPresent"
         livenessProbe:
           exec:
