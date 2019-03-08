@@ -196,7 +196,7 @@ spec:
         command:
         - "bash"
         - "-c"
-        - "ZOOKEEPER_SERVER_ID=$((${HOSTNAME##*-}+1)) && /etc/confluent/docker/run"
+        - "if [ ! -f '/var/lib/zookeeper/data/myid' ]; then ZOOKEEPER_SERVER_ID=$((${HOSTNAME##*-}+1)); else ZOOKEEPER_SERVER_ID=$(cat /var/lib/zookeeper/data/myid); fi && /etc/confluent/docker/run"
         volumeMounts:
         - name: datadir
           mountPath: /var/lib/zookeeper/data

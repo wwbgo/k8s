@@ -260,7 +260,7 @@ spec:
         - sh
         - -exc
         - |
-          export KAFKA_BROKER_ID=${HOSTNAME##*-} && \
+          if [ ! -f '/opt/kafka/data/logs/meta.properties' ]; then export KAFKA_BROKER_ID=${HOSTNAME##*-}; else export KAFKA_BROKER_ID=$(tail -n 1 /opt/kafka/data/logs/meta.properties | cut -d'=' -f 2); fi && \
           export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.50.225:3205${HOSTNAME##*-} && \
           exec /etc/confluent/docker/run
         volumeMounts:
