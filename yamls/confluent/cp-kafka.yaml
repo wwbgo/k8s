@@ -252,6 +252,8 @@ spec:
           value: "5"
         - name: KAFKA_JMX_PORT
           value: "5555"
+        - name: KAFKA_LOG_CLEANUP_POLICY
+          value: "compact"
         # This is required because the Downward API does not yet support identification of
         # pod numbering in statefulsets. Thus, we are required to specify a command which
         # allows us to extract the pod ID for usage as the Kafka Broker ID.
