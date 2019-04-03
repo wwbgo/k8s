@@ -275,6 +275,8 @@ spec:
   volumeClaimTemplates:
   - metadata:
       name: datadir
+      labels:
+        app: kafka
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: rook-ceph-block

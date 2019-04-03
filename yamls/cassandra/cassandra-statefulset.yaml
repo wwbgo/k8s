@@ -84,6 +84,8 @@ spec:
   volumeClaimTemplates:
   - metadata:
       name: cassandra-data
+      labels:
+        app: cassandra
     spec:
       accessModes: [ "ReadWriteOnce" ]
       resources:

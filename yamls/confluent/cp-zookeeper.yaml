@@ -209,6 +209,8 @@ spec:
   volumeClaimTemplates:
   - metadata:
       name: datadir
+      labels:
+        type: zk
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: rook-ceph-block
@@ -217,6 +219,8 @@ spec:
           storage: "5Gi"
   - metadata:
       name: datalogdir
+      labels:
+        type: zklog
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: rook-ceph-block

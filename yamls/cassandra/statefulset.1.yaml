@@ -25,8 +25,8 @@ spec:
           name: cql
         resources:
           limits:
-            cpu: "500m"
-            memory: 1Gi
+            cpu: "2000m"
+            memory: 4Gi
           requests:
            cpu: "500m"
            memory: 1Gi
@@ -40,9 +40,13 @@ spec:
               command: ["/bin/sh", "-c", "PID=$(pidof java) && kill $PID && while ps -p $PID > /dev/null; do sleep 1; done"]
         env:
           - name: MAX_HEAP_SIZE
-            value: 512M
+            value: 4096M
           - name: HEAP_NEWSIZE
-            value: 100M
+            value: 200M
+          - name: CASSANDRA_KEY_CACHE_SIZE_IN_MB
+            value: "256"
+          - name: CASSANDRA_TOMBSTONE_FAILURE_THRESHOLD
+            value: "200000"
           - name: CASSANDRA_SEEDS
             value: "cassandra-0.cassandra.default.svc.cluster.local"
           - name: CASSANDRA_CLUSTER_NAME
@@ -50,7 +54,11 @@ spec:
           - name: CASSANDRA_DC
             value: "dc1"
           - name: CASSANDRA_RACK
-            value: "Rack1"
+            value: "3"
+          - name: CASSANDRA_BATCH_SIZE_WARN_THRESHOLD_IN_KB
+            value: "40"
+          - name: CASSANDRA_BATCH_SIZE_FAIL_THRESHOLD_IN_KB
+            value: "200"
           - name: CASSANDRA_AUTO_BOOTSTRAP
             value: "false"
           - name: CASSANDRA_ENDPOINT_SNITCH
