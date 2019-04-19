@@ -1,0 +1,196 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cassandra-jmx-configmap
+  labels:
+    app: cassandra
+data:
+  config.yml: |+
+    host: localhost:7199
+    ssl: False
+    user: wwb
+    password: 123456
+    listenPort: 8080
+    blacklist:
+      # To profile the duration of jmx call you can start the program with the following options
+      # > java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace -jar cassandra_exporter.jar config.yml --oneshot
+      #
+      # To get intuition of what is done by cassandra when something is called you can look in cassandra
+      # https://github.com/apache/cassandra/tree/trunk/src/java/org/apache/cassandra/metrics
+      # Please avoid to scrape frequently those calls that are iterating over all sstables
+
+      # Unaccessible metrics (not enough privilege)
+      - java:lang:memorypool:.*usagethreshold.*
+
+      # Leaf attributes not interesting for us but that are presents in many path
+      - .*:999thpercentile
+      - .*:95thpercentile
+      - .*:fifteenminuterate
+      - .*:fiveminuterate
+      - .*:durationunit
+      - .*:rateunit
+      - .*:stddev
+      - .*:meanrate
+      - .*:mean
+      - .*:min
+
+      # Path present in many metrics but uninterresting
+      - .*:viewlockacquiretime:.*
+      - .*:viewreadtime:.*
+      - .*:cas[a-z]+latency:.*
+      - .*:colupdatetimedeltahistogram:.*
+
+      # Mostly for RPC, do not scrap them
+      - org:apache:cassandra:db:.*
+
+      # columnfamily is an alias for Table metrics
+      # https://github.com/apache/cassandra/blob/8b3a60b9a7dbefeecc06bace617279612ec7092d/src/java/org/apache/cassandra/metrics/TableMetrics.java#L162
+      - org:apache:cassandra:metrics:columnfamily:.*
+
+      # Should we export metrics for system keyspaces/tables ?
+      - org:apache:cassandra:metrics:[^:]+:system[^:]*:.*
+
+      # Don't scrap us
+      - com:criteo:nosql:cassandra:exporter:.*
+
+    maxScrapFrequencyInSec:
+      50:
+        - .*
+
+      # Refresh those metrics only every hour as it is costly for cassandra to retrieve them
+      3600:
+        - .*:snapshotssize:.*
+        - .*:estimated.*
+        - .*:totaldiskspaceused:.*
+---
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  labels:
+    app: cassandra
+  name: cassandra
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cassandra
+  serviceName: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 192.168.50.67
+                - 192.168.50.68
+                - 192.168.50.69
+      containers:
+      - name: prometheus-jmx-exporter
+        image: "criteord/cassandra_exporter:2.2.2"
+        ports:
+        - containerPort: 8080
+        resources:
+          null
+          
+        volumeMounts:
+        - name: jmx-config
+          mountPath: /etc/cassandra_exporter/
+      - env:
+        - name: MAX_HEAP_SIZE
+          value: 4096M
+        - name: HEAP_NEWSIZE
+          value: 200M
+        - name: CASSANDRA_KEY_CACHE_SIZE_IN_MB
+          value: "256"
+        - name: CASSANDRA_TOMBSTONE_FAILURE_THRESHOLD
+          value: "200000"
+        - name: CASSANDRA_SEEDS
+          value: cassandra-0.cassandra.cassandra.svc.cluster.local
+        - name: CASSANDRA_CLUSTER_NAME
+          value: TestCluster
+        - name: CASSANDRA_DC
+          value: dc1
+        - name: CASSANDRA_RACK
+          value: Rack1
+        - name: CASSANDRA_AUTO_BOOTSTRAP
+          value: "false"
+        - name: CASSANDRA_BATCH_SIZE_WARN_THRESHOLD_IN_KB
+          value: "40"
+        - name: CASSANDRA_BATCH_SIZE_FAIL_THRESHOLD_IN_KB
+          value: "200"
+        - name: CASSANDRA_ENDPOINT_SNITCH
+          value: GossipingPropertyFileSnitch
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        image: docker.flexem.com/library/cassandra:3
+        imagePullPolicy: Always
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - PID=$(pidof java) && kill $PID && while ps -p $PID > /dev/null; do
+                sleep 1; done
+        name: cassandra
+        ports:
+        - containerPort: 7000
+          name: intra-node
+          protocol: TCP
+        - containerPort: 7001
+          name: tls-intra-node
+          protocol: TCP
+        - containerPort: 7199
+          name: jmx
+          protocol: TCP
+        - containerPort: 9042
+          name: cql
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 4
+            memory: 8Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        securityContext:
+          capabilities:
+            add:
+            - IPC_LOCK
+          procMount: Default
+        volumeMounts:
+        - mountPath: /var/lib/cassandra
+          name: cassandra-data
+      volumes:
+      - name: jmx-config
+        configMap:
+          name: cassandra-jmx-configmap
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+  updateStrategy:
+    type: OnDelete
+  volumeClaimTemplates:
+  - metadata:
+      name: cassandra-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 100Gi
+      volumeMode: Filesystem
+
