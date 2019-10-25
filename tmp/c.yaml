@@ -1,0 +1,121 @@
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: fboxoutputpipeline-data
+  labels:
+    app: fboxoutputpipeline-data
+spec: 
+  serviceName: fboxoutputpipeline-data
+  replicas: 0
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: fboxoutputpipeline-data
+  template:
+    metadata:
+      name: fboxoutputpipeline-data
+      labels:
+        app: fboxoutputpipeline-data
+    spec:
+      containers:
+      - name: fboxoutputpipeline-data
+        image: docker.flexem.com/flexem-fbox/fbox.outputpipeline:1.0.0.4214-a338a5
+        imagePullPolicy: "Always"
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          
+        env:
+        - name: Kestrel__EndPoints__Http__Url
+          value: http://*:80
+        - name: SubscriptionManager__MaxDataSourceTopicBufferQueueSize
+          value: "20000"
+        - name: SubscriptionManager__RocksDb__DataDir
+          value: ../db/default
+        - name: SubscriptionManager__FBoxKafka__BootstrapServers
+          value: 192.168.50.77:30176
+        - name: SubscriptionManager__FBoxKafka__TopicPrefix
+          value: fboxqa.
+        - name: SubscriptionManager__FBoxKafka__GroupId
+          value: fbox-outputpipeline
+        - name: SubscriptionManager__DmonDataOutputHubPrefix
+          value: fbox.dmon.data.
+        - name: SubscriptionManager__AlarmDataOutputHubPrefix
+          value: fbox.alarm.data.
+        - name: SubscriptionManager__HdataDataOutputHubPrefix
+          value: fbox.hdata.data.
+        - name: SubscriptionManager__ConsumeDefsFromBeginning
+        - name: SubscriptionManager__ConsumeSubscriptionsFromBeginning
+        - name: SubscriptionManager__ConsumeDataSourcesFromBeginning
+        - name: SubscriptionManager__ConsumeDmonDataFromEnd
+          value: "true"
+        - name: SubscriptionManager__OutputTopics__0__Regex
+          value: ^fbox\\.dmon\\.data\\..+
+        - name: SubscriptionManager__OutputTopics__0__Topic
+          value: $0
+        - name: SubscriptionManager__OutputTopics__0__ProducerSettings__BootstrapServers
+          value: 192.168.50.77:30176
+        - name: SubscriptionManager__OutputTopics__0__ProducerSettings__TopicPrefix
+          value: fboxqa.
+        - name: SubscriptionManager__OutputTopics__0__ProducerSettings__EnableAsyncFlush
+          value: "true"
+        - name: SubscriptionManager__OutputTopics__1__Regex
+          value: ^fbox\\.alarm\\.data\\..+
+        - name: SubscriptionManager__OutputTopics__1__Topic
+          value: $0
+        - name: SubscriptionManager__OutputTopics__1__ProducerSettings__BootstrapServers
+          value: 192.168.50.77:30176
+        - name: SubscriptionManager__OutputTopics__1__ProducerSettings__TopicPrefix
+          value: fboxqa.
+        - name: SubscriptionManager__OutputTopics__1__ProducerSettings__EnableAsyncFlush
+          value: "true"
+        - name: SubscriptionManager__OutputTopics__2__Regex
+          value: ^fbox\\.hdata\\.data\\..+
+        - name: SubscriptionManager__OutputTopics__2__Topic
+          value: $0
+        - name: SubscriptionManager__OutputTopics__2__ProducerSettings__BootstrapServers
+          value: 192.168.50.77:30176
+        - name: SubscriptionManager__OutputTopics__2__ProducerSettings__TopicPrefix
+          value: fboxqa.
+        - name: SubscriptionManager__OutputTopics__2__ProducerSettings__EnableAsyncFlush
+          value: "true"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        volumeMounts:
+        - name: data
+          mountPath: /db
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "4Gi"
+        storageClassName: "rook-ceph-block"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fboxoutputpipeline-data
+  name: fboxoutputpipeline-data
+  namespace: fbox-qa
+spec:
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: fboxoutputpipeline-data
+  sessionAffinity: None
+  type: NodePort

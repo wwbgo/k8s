@@ -1,0 +1,160 @@
+---
+# Source: kibana/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-kibana
+  labels:
+    app: kibana
+data:
+  kibana.yml: |
+    elasticsearch.url: http://log-elasticsearch-client.log.svc.cluster.local:9200
+    server.host: "0"
+    server.name: kibana
+    
+---
+# Source: kibana/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kibana
+  name: log-kibana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: 5601
+      protocol: TCP
+
+  selector:
+    app: kibana
+    release: log
+
+---
+# Source: kibana/templates/deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: kibana
+  name: log-kibana
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  template:
+    metadata:
+      annotations:
+        checksum/config: a0ee20575083d9dfb1c4c15cb54dfbb94fed3e6b2b24dc0734494852b367b3f4
+      labels:
+        app: kibana
+    spec:
+      serviceAccountName: log-kibana
+      initContainers:
+      - name: kibana-plugins-install
+        image: "docker.elastic.co/kibana/kibana-oss:7.0.1"
+        imagePullPolicy: IfNotPresent
+        command:
+          - /bin/bash
+          - "-c"
+          - |
+            set -e
+            rm -rf plugins/lost+found
+            plugins=(
+            elastalert-kibana-plugin,1.0.3,https://github.com/bitsensor/elastalert-kibana-plugin/releases/download/1.0.3/elastalert-kibana-plugin-1.0.3-6.7.1.zip
+            logtrail,0.1.31,https://github.com/sivasamyk/logtrail/releases/download/v0.1.31/logtrail-6.7.1-0.1.31.zip
+            )
+            if false
+            then
+              for p in $(./bin/kibana-plugin list | cut -d "@" -f1)
+              do
+                ./bin/kibana-plugin remove ${p}
+              done
+            fi
+            for i in "${plugins[@]}"
+            do
+              IFS=',' read -ra PLUGIN <<< "$i"
+              pluginInstalledCheck=$(./bin/kibana-plugin list | grep "${PLUGIN[0]}" | cut -d '@' -f1 || true)
+              pluginVersionCheck=$(./bin/kibana-plugin list | grep "${PLUGIN[0]}" | cut -d '@' -f2 || true)
+              if [ "${pluginInstalledCheck}" = "${PLUGIN[0]}" ]
+              then
+                if [ "${pluginVersionCheck}" != "${PLUGIN[1]}" ]
+                then
+                  ./bin/kibana-plugin remove "${PLUGIN[0]}"
+                  ./bin/kibana-plugin install "${PLUGIN[2]}"
+                fi
+              else
+                ./bin/kibana-plugin install "${PLUGIN[2]}"
+              fi
+            done
+        env:
+        ports:
+        - containerPort: 5601
+          name: kibana
+          protocol: TCP
+        volumeMounts:
+        - name: plugins
+          mountPath: /usr/share/kibana/plugins
+        - name: kibana
+          mountPath: "/usr/share/kibana/config/kibana.yml"
+          subPath: kibana.yml
+        securityContext:
+          allowPrivilegeEscalation: false
+      containers:
+      - name: kibana
+        image: "docker.elastic.co/kibana/kibana-oss:7.0.1"
+        imagePullPolicy: IfNotPresent
+        env:
+        ports:
+        - containerPort: 5601
+          name: kibana
+          protocol: TCP
+        resources:
+          {}
+          
+        volumeMounts:
+        - name: kibana
+          mountPath: "/usr/share/kibana/config/kibana.yml"
+          subPath: kibana.yml
+        - name: plugins
+          mountPath: /usr/share/kibana/plugins
+      tolerations:
+        []
+        
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 2000
+      volumes:
+        - name: kibana
+          configMap:
+            name: log-kibana
+        - name: plugins
+          persistentVolumeClaim:
+            claimName: log-kibana
+
+---
+# Source: kibana/templates/volume-claim.yaml
+apiVersion: "v1"
+kind: "PersistentVolumeClaim"
+metadata:
+  labels:
+    app: kibana
+    component: ""
+  name: log-kibana
+spec:
+  accessModes:
+    - ReadWriteOnce
+    
+  storageClassName: "rook-ceph-block"
+  resources:
+    requests:
+      storage: "10Gi"
+---
+# Source: kibana/templates/configmap-dashboardimport.yaml
+
+---
+# Source: kibana/templates/ingress.yaml
+
+---
+# Source: kibana/templates/serviceaccount.yaml
+

@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: mssql
+    release: mssql
+  name: mssql-mssql
+  namespace: mssql
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: mssql
+      release: mssql
+      role: master
+  serviceName: mssql-mssql-headless
+  template:
+    metadata:
+      labels:
+        app: mssql
+        release: mssql
+        role: master
+      name: mssql-mssql
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 192.168.50.69
+      containers:
+      - env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: mssql-password
+              name: mssql-mssql
+        image: mcr.microsoft.com/mssql/server:2019-CTP3.2-ubuntu
+        imagePullPolicy: Always
+        name: mssql-mssql
+        ports:
+        - containerPort: 1433
+          name: mssql
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /var/opt/mssql/data
+          name: data
+      dnsPolicy: ClusterFirst
+      tolerations:
+        - effect: NoSchedule
+          key: type
+          operator: Equal
+          value: basic
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 50Gi
+      volumeMode: Filesystem

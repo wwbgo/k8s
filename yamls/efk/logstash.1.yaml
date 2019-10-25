@@ -1,0 +1,270 @@
+---
+# Source: logstash/templates/files-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-logstash-files
+  labels:
+    app: logstash
+    chart: logstash-1.8.0
+    release: log
+    heritage: Tiller
+data:
+
+---
+# Source: logstash/templates/patterns-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-logstash-patterns
+  labels:
+    app: logstash
+    chart: logstash-1.8.0
+    release: log
+    heritage: Tiller
+data:
+
+---
+# Source: logstash/templates/pipeline-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-logstash-pipeline
+  labels:
+    app: logstash
+    chart: logstash-1.8.0
+    release: log
+    heritage: Tiller
+data:
+  input_main: |-
+    input {
+      # udp {
+      #   port => 1514
+      #   type => syslog
+      # }
+      # tcp {
+      #   port => 1514
+      #   type => syslog
+      # }
+      # beats {
+      #   port => 5044
+      # }
+      # http {
+      #   port => 8080
+      # }
+      kafka {
+        ## ref: https://www.elastic.co/guide/en/logstash/current/plugins-inputs-kafka.html
+        bootstrap_servers => ["192.168.50.77:30176"]
+        group_id => "log"
+        codec => json { charset => "UTF-8" }
+        consumer_threads => 1
+        decorate_events => true
+        topics => ["log"]
+        type => "log"
+      }
+    }
+  output_main: |-
+    output {
+      # stdout { codec => rubydebug }
+      # elasticsearch {
+      #   hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+      #   manage_template => false
+      #   index => "%{[@metadata][beat]}-%{+YYYY.MM.dd}"
+      #   document_type => "%{[@metadata][type]}"
+      # }
+      if [@metadata][pipeline] {
+        elasticsearch {
+          hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+          manage_template => false
+          index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
+          pipeline => "%{[@metadata][pipeline]}"
+        }
+      } else {
+        elasticsearch {
+          hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+          manage_template => false
+          index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
+        }
+      }
+      # kafka {
+      #   ## ref: https://www.elastic.co/guide/en/logstash/current/plugins-outputs-kafka.html
+      #   bootstrap_servers => "kafka-output:9092"
+      #   codec => json { charset => "UTF-8" }
+      #   compression_type => "lz4"
+      #   topic_id => "destination"
+      # }
+    }
+
+---
+# Source: logstash/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-logstash
+  labels:
+    app: logstash
+    chart: logstash-1.8.0
+    release: log
+    heritage: Tiller
+  annotations:
+spec:
+  type: ClusterIP
+  ports:
+    - name: beats
+      port: 5044
+      protocol: TCP
+      targetPort: beats
+      
+  selector:
+    app: logstash
+    release: log
+
+
+---
+# Source: logstash/templates/statefulset.yaml
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: log-logstash
+  labels:
+    app: logstash
+    chart: logstash-1.8.0
+    release: log
+    heritage: Tiller
+spec:
+  serviceName: log-logstash
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+      release: log
+  template:
+    metadata:
+      labels:
+        app: logstash
+        release: log
+      annotations:
+        checksum/patterns: 531ae759825d3885a23d153b3a40118251c51b0d629c45d3e5f68bd064583361
+        checksum/templates: 2a8e7584eb432eb3f35ec6a47f09e1f6efed44808e8786b3c0471932ad6f630b
+        checksum/pipeline: ea467505a55533ba8ad06d423789028bceb9130eb17d70b78c7af322fa112573
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+
+        ## logstash
+        - name: logstash
+          image: "docker.elastic.co/logstash/logstash-oss:6.7.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: monitor
+              containerPort: 9600
+              protocol: TCP
+            - containerPort: 5044
+              name: beats
+              protocol: TCP
+            
+          livenessProbe:
+            httpGet:
+              path: /
+              port: monitor
+            initialDelaySeconds: 20
+            
+          readinessProbe:
+            httpGet:
+              path: /
+              port: monitor
+            initialDelaySeconds: 20
+            
+          env:
+            ## Logstash monitoring API host and port env vars
+            - name: HTTP_HOST
+              value: "0.0.0.0"
+            - name: HTTP_PORT
+              value: "9600"
+            ## Elasticsearch output
+            - name: ELASTICSEARCH_HOST
+              value: "log-elasticsearch-client.log.svc.cluster.local"
+            - name: ELASTICSEARCH_PORT
+              value: "9200"
+            # Logstash Java Options
+            - name: LS_JAVA_OPTS
+              value: -Xmx1g -Xms1g
+            ## Additional env vars
+            - name: CONFIG_RELOAD_AUTOMATIC
+              value: "true"
+            - name: PATH_CONFIG
+              value: "/usr/share/logstash/pipeline"
+            - name: PATH_DATA
+              value: "/usr/share/logstash/data"
+            - name: QUEUE_CHECKPOINT_WRITES
+              value: "1024"
+            - name: QUEUE_DRAIN
+              value: "true"
+            - name: QUEUE_MAX_BYTES
+              value: "1gb"
+            - name: QUEUE_TYPE
+              value: "persisted"
+            - name: PIPELINE_BATCH_SIZE
+              value: "1000"
+            - name: PIPELINE_BATCH_DELAY
+              value: "50"
+          resources:
+            {}
+            
+          volumeMounts:
+            - mountPath: /usr/share/logstash/data
+              name: data
+            - mountPath: /usr/share/logstash/patterns
+              name: patterns
+            - mountPath: /usr/share/logstash/files
+              name: files
+            - mountPath: /usr/share/logstash/pipeline
+              name: pipeline
+            
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: patterns
+          configMap:
+            name: log-logstash-patterns
+        - name: files
+          configMap:
+            name: log-logstash-files
+        - name: pipeline
+          configMap:
+            name: log-logstash-pipeline
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        storageClassName: rook-ceph-block
+        resources:
+          requests:
+            storage: "5Gi"
+
+---
+# Source: logstash/templates/poddisruptionbudget.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: log-logstash
+  labels:
+    app: logstash
+    chart: logstash-1.8.0
+    release: log
+    heritage: Tiller
+spec:
+  selector:
+    matchLabels:
+      app: logstash
+      release: log
+  maxUnavailable: 1
+  
+
+---
+# Source: logstash/templates/ingress.yaml
+
+

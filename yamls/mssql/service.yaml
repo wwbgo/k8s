@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mssql
+    release: mssql
+  name: mssql-mssql-headless
+  namespace: mssql
+spec:
+  clusterIP: None
+  ports:
+  - name: mssql
+    port: 1433
+    protocol: TCP
+    targetPort: mssql
+  selector:
+    app: mssql
+    release: mssql
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mssql
+    release: mssql
+  name: mssql-mssql
+  namespace: mssql
+spec:
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: mssql
+    port: 1433
+    protocol: TCP
+    targetPort: mssql
+  selector:
+    app: mssql
+    release: mssql
+    role: master
+  sessionAffinity: None
+  type: NodePort

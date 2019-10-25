@@ -1,0 +1,176 @@
+---
+# Source: kibana/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-kibana
+  labels:
+    app: kibana
+    chart: "kibana-2.3.0"
+    release: log
+    heritage: Tiller
+data:
+  kibana.yml: |
+    elasticsearch.hosts: http://log-elasticsearch-client.log:9200
+    server.host: "0"
+    server.name: kibana
+    
+---
+# Source: kibana/templates/tests/test-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-kibana-test
+  labels:
+    app: log-kibana
+    chart: "kibana-2.3.0"
+    heritage: "Tiller"
+    release: "log"
+data:
+  run.sh: |-
+    @test "Test Status" {
+      url="http://log-kibana:443/api/status"
+
+      # retry for 1 minute
+      run curl -s -o /dev/null -I -w "%{http_code}" --retry 30 --retry-delay 2 $url
+
+      code=$(curl -s -o /dev/null -I -w "%{http_code}" $url)
+      body=$(curl $url)
+      if [ "$code" == "503" ]
+      then
+        skip "Kibana Unavailable (503), can't get status - see pod logs: $body"
+      fi
+
+      result=$(echo $body | jq -cr '.status.statuses[]')
+      [ "$result" != "" ]
+
+      result=$(echo $body | jq -cr '.status.statuses[] | select(.state != "green")')
+      [ "$result" == "" ]
+    }
+
+---
+# Source: kibana/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kibana
+    chart: kibana-2.3.0
+    release: log
+    heritage: Tiller
+  name: log-kibana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: 5601
+      protocol: TCP
+
+  selector:
+    app: kibana
+    release: log
+
+---
+# Source: kibana/templates/tests/test.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: log-kibana-test
+  labels:
+    app: log-kibana
+    chart: "kibana-2.3.0"
+    heritage: "Tiller"
+    release: "log"
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  initContainers:
+    - name: test-framework
+      image: "dduportal/bats:0.4.0"
+      command:
+      - "bash"
+      - "-c"
+      - |
+        set -ex
+        # copy bats to tools dir
+        cp -R /usr/local/libexec/ /tools/bats/
+      volumeMounts:
+      - mountPath: /tools
+        name: tools
+  containers:
+    - name: log-test
+      image: "dwdraju/alpine-curl-jq"
+      command: ["/tools/bats/bats", "-t", "/tests/run.sh"]
+      volumeMounts:
+        - mountPath: /tests
+          name: tests
+          readOnly: true
+        - mountPath: /tools
+          name: tools
+  volumes:
+  - name: tests
+    configMap:
+      name: log-kibana-test
+  - name: tools
+    emptyDir: {}
+  restartPolicy: Never
+
+---
+# Source: kibana/templates/deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: kibana
+    chart: "kibana-2.3.0"
+    heritage: Tiller
+    release: log
+  name: log-kibana
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  template:
+    metadata:
+      annotations:
+        checksum/config: 021483177b7466255803681f22c9486646422e1c6ea6635db33721b279769a48
+      labels:
+        app: kibana
+        release: "log"
+    spec:
+      serviceAccountName: default
+      containers:
+      - name: kibana
+        image: "docker.elastic.co/kibana/kibana-oss:6.7.0"
+        imagePullPolicy: IfNotPresent
+        env:
+        ports:
+        - containerPort: 5601
+          name: kibana
+          protocol: TCP
+        resources:
+          {}
+          
+        volumeMounts:
+        - name: kibana
+          mountPath: "/usr/share/kibana/config/kibana.yml"
+          subPath: kibana.yml
+      tolerations:
+        []
+        
+      volumes:
+        - name: kibana
+          configMap:
+            name: log-kibana
+
+---
+# Source: kibana/templates/configmap-dashboardimport.yaml
+
+---
+# Source: kibana/templates/ingress.yaml
+
+---
+# Source: kibana/templates/serviceaccount.yaml
+
+---
+# Source: kibana/templates/volume-claim.yaml
+
