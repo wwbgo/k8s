@@ -1,0 +1,107 @@
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: scylla
+  labels:
+    app: scylla
+spec:
+  serviceName: scylla
+  replicas: 3
+  selector:
+    matchLabels:
+      app: scylla
+  template:
+    metadata:
+      labels:
+        app: scylla
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 192.168.50.67
+                - 192.168.50.68
+                - 192.168.50.69
+      tolerations: 
+        - key: type
+          operator: Equal
+          value: basic
+          effect: NoSchedule
+      containers:
+        - name: scylla
+          image: scylladb/scylla:3.1.1
+          imagePullPolicy: IfNotPresent
+          args: 
+            - --seeds=scylla-0.scylla.scylla.svc.cluster.local
+            - --cluster-name=TestCluster
+            - --endpoint-snitch
+            - GossipingPropertyFileSnitch
+          ports:
+            - containerPort: 7000
+              name: intra-node
+            - containerPort: 7001
+              name: tls-intra-node
+            - containerPort: 7199
+              name: jmx
+            - containerPort: 9042
+              name: cql
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          securityContext:
+            capabilities:
+              add:
+                - IPC_LOCK
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "PID=$(pidof scylla) && kill $PID && while ps -p $PID > /dev/null; do sleep 1; done"]
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - exec
+                - /opt/ready-probe.sh
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: scylla-data
+              mountPath: /var/lib/scylla
+            - name: scylla-ready-probe
+              mountPath: /opt/ready-probe.sh
+              subPath: ready-probe.sh
+            - name: cassandra-rackdc
+              mountPath: /etc/scylla/cassandra-rackdc.properties
+              subPath: cassandra-rackdc.properties
+      volumes:
+        - name: scylla-ready-probe
+          configMap:
+            name: scylla
+        - name: cassandra-rackdc
+          configMap:
+            name: scylla
+  volumeClaimTemplates:
+    - metadata:
+        name: scylla-data
+      spec:
+        accessModes: 
+        - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi

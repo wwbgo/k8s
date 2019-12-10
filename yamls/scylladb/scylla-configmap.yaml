@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scylla
+data:
+  ready-probe.sh: |
+    #!/bin/bash
+    if [[ $(nodetool status | grep $POD_IP) == *"UN"* ]]; then
+      if [[ $DEBUG ]]; then
+        echo "UN";
+      fi
+      exit 0;
+    else
+      if [[ $DEBUG ]]; then
+        echo "Not Up";
+      fi
+      exit 1;
+    fi
+  cassandra-rackdc.properties: |
+    #
+    # cassandra-rackdc.properties
+    #
+    # The lines may include white spaces at the beginning and the end.
+    # The rack and data center names may also include white spaces.
+    # All trailing and leading white spaces will be trimmed.
+    #
+    # dc=my_data_center
+    # rack=my_rack
+    # prefer_local=<false | true>
+    # dc_suffix=<Data Center name suffix, used by EC2SnitchXXX snitches>
+    #
+    dc=dc1
+    rack=rack1
