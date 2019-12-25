@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: scylla
@@ -31,15 +31,17 @@ spec:
           operator: Equal
           value: basic
           effect: NoSchedule
+      terminationGracePeriodSeconds: 120
       containers:
         - name: scylla
-          image: scylladb/scylla:3.1.1
+          image: scylladb/scylla:3.1.2
           imagePullPolicy: IfNotPresent
           args: 
             - --seeds=scylla-0.scylla.scylla.svc.cluster.local
+            # - --listen-address=$(POD_IP)
+            - --overprovisioned=1
             - --cluster-name=TestCluster
-            - --endpoint-snitch
-            - GossipingPropertyFileSnitch
+            - --endpoint-snitch=GossipingPropertyFileSnitch
           ports:
             - containerPort: 7000
               name: intra-node
@@ -49,34 +51,41 @@ spec:
               name: jmx
             - containerPort: 9042
               name: cql
+            - containerPort: 10000
+            - containerPort: 9180
+            - containerPort: 9100
+            - containerPort: 9160
           resources:
             limits:
-              cpu: 2000m
+              cpu: 2
               memory: 4Gi
             requests:
               cpu: 500m
               memory: 1Gi
-          securityContext:
-            capabilities:
-              add:
-                - IPC_LOCK
+          # securityContext:
+          #   privileged: true
+          #   capabilities:
+          #     add:
+          #       - IPC_LOCK
           lifecycle:
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "PID=$(pidof scylla) && kill $PID && while ps -p $PID > /dev/null; do sleep 1; done"]
+                command: ["/usr/bin/nodetool","decommission"]
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: MY_SERVICE_NAME
+            value: scylla
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
 
           readinessProbe:
             exec:
-              command:
-                - /bin/bash
-                - -c
-                - exec
-                - /opt/ready-probe.sh
+              command: ["/bin/sh", "-c", "exec", "/opt/ready-probe.sh"]
             initialDelaySeconds: 15
             timeoutSeconds: 5
           volumeMounts:

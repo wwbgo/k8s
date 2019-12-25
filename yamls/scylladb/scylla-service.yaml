@@ -7,6 +7,21 @@ metadata:
 spec:
   clusterIP: None
   ports:
-  - port: 9042
+    - port: 9042
+      name: cql
+    - port: 7000
+      name: internode
+    - port: 7001
+      name: sslinternode
+    - port: 7199
+      name: jmx
+    - port: 10000
+      name: rest
+    - port: 9180
+      name: prometeus
+    - port: 9100
+      name: nodeexporter
+    - port: 9160
+      name: thrift
   selector:
     app: scylla

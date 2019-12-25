@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+data:
+  filebeat.yml: |-
+    filebeat.inputs:
+    - type: container
+      paths:
+        - /var/log/containers/*.log
+      processors:
+        - add_kubernetes_metadata:
+            host: ${NODE_NAME}
+            matchers:
+            - logs_path:
+                logs_path: "/var/log/containers/"
+      ignore_older: 12h
+      encoding: utf-8
+
+    # To enable hints based autodiscover, remove `filebeat.inputs` configuration and uncomment this:
+    #filebeat.autodiscover:
+    #  providers:
+    #    - type: kubernetes
+    #      host: ${NODE_NAME}
+    #      hints.enabled: true
+    #      hints.default_config:
+    #        type: container
+    #        paths:
+    #          - /var/log/containers/*${data.kubernetes.container.id}.log
+
+    processors:
+      - add_host_metadata:
+
+    #setup.template.settings:
+    #  index.number_of_shards: 1
+    output.kafka:
+      hosts: ['192.168.50.77:30176']
+      topic: 'log'
+      key: '%{[kubernetes.pod.name]}'
+      codec.format: 
+        string: '[%{[@timestamp]}] %{[message]}'
+      version: '2.0.0'
