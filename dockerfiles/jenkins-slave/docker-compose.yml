@@ -1,0 +1,19 @@
+version: '3.5'
+
+services:
+  slave-0:
+    image: docker.flexem.com/library/jenkins-slave:0.1.0
+    restart: always
+    container_name: slave-0
+    user: root
+    command: []
+    environment:
+      JENKINS_URL: http://192.168.50.77:30636
+      JENKINS_TUNNEL: 192.168.50.77:36834
+      JENKINS_SECRET: cecaf9dcbdcccdc9ad68b3c314cf8dd1778df0e7b2368f936a7efb22696842d9
+      JENKINS_AGENT_NAME: slave0
+      chartrepo: http://192.168.50.39:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /usr/bin/docker:/bin/docker:ro
+      - /opt/jenkinsslave/slave0:/data

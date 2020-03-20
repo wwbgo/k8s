@@ -1,0 +1,15 @@
+version: '3.5'
+
+services:
+  kafka-manager:
+    image: docker.flexem.com/library/kafka-manager:2.0.0
+    ports:
+      - 39000:9000
+    environment:
+      ZK_HOSTS: 192.168.50.77:30610
+      KAFKA_MANAGER_AUTH_ENABLED: "true"
+      KAFKA_MANAGER_USERNAME: admin
+      KAFKA_MANAGER_PASSWORD: admin
+      # APPLICATION_SECRET: letmein
+    #volumes:
+    #  - /path/to/confdir:/kafka-manager-2.0.0.2/conf
