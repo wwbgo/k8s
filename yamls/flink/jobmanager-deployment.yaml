@@ -14,6 +14,17 @@ spec:
         app: flink
         component: jobmanager
     spec:
+      initContainers:
+      - name: init
+        image: busybox
+        command:
+        - chown
+        - -R
+        - 9999:9999
+        - /opt/flink/jars
+        volumeMounts:
+        - name: flink-jars
+          mountPath: /opt/flink/jars
       containers:
       - name: jobmanager
         image: docker.flexem.com/library/flink:1.10.0-1
@@ -41,9 +52,9 @@ spec:
           periodSeconds: 60
         volumeMounts:
         - name: flink-config-volume
-          mountPath: /opt/jars
-        - mountPath: /var/lib/grafana
-          name: jobmanager-jars
+          mountPath: /opt/flink/conf
+        - name: flink-jars
+          mountPath: /opt/flink/jars
         securityContext:
           runAsUser: 9999  # refers to user _flink_ from official flink image, change if necessary
       volumes:
@@ -55,6 +66,6 @@ spec:
             path: flink-conf.yaml
           - key: log4j.properties
             path: log4j.properties
-      - name: jobmanager-jars
+      - name: flink-jars
         persistentVolumeClaim: 
-          claimName: jobmanager-jars
+          claimName: flink-jars

@@ -13,7 +13,7 @@ data:
     taskmanager.rpc.port: 6122
     jobmanager.heap.size: 1024m
     taskmanager.memory.process.size: 1024m
-    web.upload.dir: /opt/jars
+    web.upload.dir: /opt/flink/jars
 
     metrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter
     
